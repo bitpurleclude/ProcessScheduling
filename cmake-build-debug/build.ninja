@@ -52,14 +52,9 @@ build cmake_object_order_depends_target_ProcessScheduling: phony || CMakeFiles/P
 build CMakeFiles/ProcessScheduling.dir/main.cpp.obj: CXX_COMPILER__ProcessScheduling_unscanned_Debug C$:/Users/15517/CLionProjects/ProcessScheduling/main.cpp || cmake_object_order_depends_target_ProcessScheduling
   DEP_FILE = CMakeFiles\ProcessScheduling.dir\main.cpp.obj.d
   FLAGS = -g -fdiagnostics-color=always
+  INCLUDES = -IC:/Users/15517/CLionProjects/ProcessScheduling/class
   OBJECT_DIR = CMakeFiles\ProcessScheduling.dir
   OBJECT_FILE_DIR = CMakeFiles\ProcessScheduling.dir
-
-build CMakeFiles/ProcessScheduling.dir/class/PCB.cpp.obj: CXX_COMPILER__ProcessScheduling_unscanned_Debug C$:/Users/15517/CLionProjects/ProcessScheduling/class/PCB.cpp || cmake_object_order_depends_target_ProcessScheduling
-  DEP_FILE = CMakeFiles\ProcessScheduling.dir\class\PCB.cpp.obj.d
-  FLAGS = -g -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles\ProcessScheduling.dir
-  OBJECT_FILE_DIR = CMakeFiles\ProcessScheduling.dir\class
 
 
 # =============================================================================
@@ -69,7 +64,7 @@ build CMakeFiles/ProcessScheduling.dir/class/PCB.cpp.obj: CXX_COMPILER__ProcessS
 #############################################
 # Link the executable ProcessScheduling.exe
 
-build ProcessScheduling.exe: CXX_EXECUTABLE_LINKER__ProcessScheduling_Debug CMakeFiles/ProcessScheduling.dir/main.cpp.obj CMakeFiles/ProcessScheduling.dir/class/PCB.cpp.obj
+build ProcessScheduling.exe: CXX_EXECUTABLE_LINKER__ProcessScheduling_Debug CMakeFiles/ProcessScheduling.dir/main.cpp.obj
   FLAGS = -g
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\ProcessScheduling.dir
