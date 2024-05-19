@@ -3,4 +3,6 @@ project(ProcessScheduling)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(ProcessScheduling main.cpp)
+add_executable(ProcessScheduling main.cpp
+        class/PCB.cpp
+        class/Scheduler.h)
