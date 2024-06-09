@@ -4,144 +4,177 @@
 
 #ifndef PROCESSSCHEDULING_SCHEDULER_H
 #define PROCESSSCHEDULING_SCHEDULER_H
-
-#include <vector>
-#include <algorithm>
-#include <thread>
-#include <iostream>
-#include <deque>
+#include <unistd.h>
+#include <cstdio>
+#include <cstdlib>
 #include "PCB.h"
 
-using namespace std;
+#define MAX 100
 
-class Scheduler {
-    std::vector<PCB> processes;  // å­˜å‚¨æ‰€æœ‰çš„è¿›ç¨‹
-    std::chrono::duration<double> timeSlice;  // æ—¶é—´ç‰‡é•¿åº¦
-    std::chrono::duration<double> finishTime;
-    std::chrono::duration<double> totalSchedulingTime;
+typedef struct {
+    PCB processes[MAX];  // ´æ´¢ËùÓĞµÄ½ø³Ì
+    int processCount;  // ½ø³ÌÊıÁ¿
+    double timeSlice;  // Ê±¼äÆ¬³¤¶È
+    double finishTime;
+    double totalSchedulingTime;
+} Scheduler;
 
-public:
-    Scheduler(std::chrono::duration<double> timeSlice, std::chrono::duration<double> finishTime) {
-        this->timeSlice = timeSlice;
-        this->finishTime = finishTime;
+void initScheduler(Scheduler* scheduler, double timeSlice, double finishTime) {
+    scheduler->timeSlice = timeSlice;
+    scheduler->finishTime = finishTime;
+    scheduler->processCount = 0;
+}
+
+void addProcess(Scheduler* scheduler, const PCB process) {
+    scheduler->processes[scheduler->processCount++] = process;
+}
+
+// ´òÓ¡ËùÓĞ½ø³ÌµÄ×´Ì¬
+void printProcesses(Scheduler* scheduler) {
+    printf("=============================================================================\n");
+    for (int i = 0; i < scheduler->processCount; i++) {
+        PCB process = scheduler->processes[i];
+        printf("½ø³ÌÃû³Æ: %s, ×´Ì¬: %s, ÒÑÔËĞĞÊ±¼ä: %.2f, ËùĞèÊ±¼ä: %.2f, ÏìÓ¦±È: %.2f\n",
+               process.processName, process.processState, process.elapsedTime, process.requiredTime, process.responseRatio);
     }
+}
+int comparePCB(const void* a, const void* b) {
+    PCB* pcbA = (PCB*)a;
+    PCB* pcbB = (PCB*)b;
+    return pcbA->requiredTime - pcbB->requiredTime;
+}
+// ×î¶Ì×÷ÒµÓÅÏÈµ÷¶ÈËã·¨
+void schedule_shortest_job_first(Scheduler* scheduler) {
+    // ¶Ô½ø³ÌÁĞ±í°´ÕÕËùĞèÔËĞĞÊ±¼ä½øĞĞÅÅĞò
+    qsort(scheduler->processes, scheduler->processCount, sizeof(PCB), comparePCB);
 
-    void addProcess(const PCB &process) {
-        processes.push_back(process);
-    }
-
-    // æ‰“å°æ‰€æœ‰è¿›ç¨‹çš„çŠ¶æ€
-    void printProcesses() {
-        for (const PCB &process: processes) {
-            std::cout << "Process Name: " << process.processName
-                      << ", State: " << process.processState
-                      << ", Elapsed Time: " << process.elapsedTime.count()
-                      << ", Required Time: " << process.requiredTime.count()
-                      << ", Response Ratio: " << process.responseRatio << std::endl;
-        }
-    }
-
-    void schedule_shortest_job_first() {
-        // å¯¹è¿›ç¨‹åˆ—è¡¨æŒ‰ç…§æ‰€éœ€è¿è¡Œæ—¶é—´è¿›è¡Œæ’åº
-        std::sort(processes.begin(), processes.end(), [](const PCB &a, const PCB &b) {
-            if (a.requiredTime == b.requiredTime) {
-                return a.priority < b.priority;  // å¦‚æœæ‰€éœ€æ—¶é—´ç›¸åŒï¼Œæ¯”è¾ƒä¼˜å…ˆçº§
+    // ±éÀúÅÅĞòºóµÄ½ø³ÌÁĞ±í£¬¶ÔÃ¿¸ö½ø³Ì½øĞĞµ÷¶È
+    for (int i = 0; i < scheduler->processCount; i++) {
+        PCB* process = &scheduler->processes[i];
+        if (strcmp(process->processState, "W") == 0 || strcmp(process->processState, "R") == 0) {
+            strcpy(process->processState, "R");  // ½«½ø³Ì×´Ì¬¸ÄÎªÔËĞĞ
+            process->startTime = time(NULL);  // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
+            while (process->requiredTime > scheduler->timeSlice) {
+                process->elapsedTime += scheduler->timeSlice;  // Ôö¼ÓÒÑÔËĞĞÊ±¼ä
+                process->requiredTime -= scheduler->timeSlice;
+                usleep(scheduler->timeSlice*1000);
             }
-            return a.requiredTime < b.requiredTime;  // å¦åˆ™ï¼Œæ¯”è¾ƒæ‰€éœ€æ—¶é—´
-        });
+            strcpy(process->processState, "F");  // ½«½ø³Ì×´Ì¬¸ÄÎªÍê³É
+            double schedulingTime = difftime(time(NULL), process->startTime);  // ¼ÆËãµ÷¶ÈÊ±¼ä
+            scheduler->totalSchedulingTime += schedulingTime;  // Ìí¼Óµ½×ÜµÄµ÷¶ÈÊ±¼ä
+            process->elapsedTime += process->requiredTime;
+            process->requiredTime = scheduler->finishTime;
+        }
+        printProcesses(scheduler);
+    }
+    printf("Æ½¾ùµ÷¶ÈÊ±¼ä: %.2f\n", scheduler->totalSchedulingTime / scheduler->processCount);  // ¼ÆËã²¢´òÓ¡Æ½¾ùµ÷¶ÈÊ±¼ä
+}
 
-        // éå†æ’åºåçš„è¿›ç¨‹åˆ—è¡¨ï¼Œå¯¹æ¯ä¸ªè¿›ç¨‹è¿›è¡Œè°ƒåº¦
-        for (PCB &process: processes) {
-            if (process.processState == "W" || process.processState == "R") {
-                process.processState = "R";  // å°†è¿›ç¨‹çŠ¶æ€æ”¹ä¸ºè¿è¡Œ
-                process.startTime = std::chrono::system_clock::now();  // è®°å½•å¼€å§‹æ—¶é—´
-                while (process.requiredTime > timeSlice) {
-                    process.elapsedTime += timeSlice;  // å¢åŠ å·²è¿è¡Œæ—¶é—´
-                    process.requiredTime -= timeSlice;
-                    std::this_thread::sleep_for(timeSlice);
+// Ê±¼äÆ¬ÂÖ×ªµ÷¶ÈËã·¨
+void schedule_round_robin(Scheduler* scheduler) {
+    // Ê¹ÓÃ¶ÓÁĞÀ´´æ´¢½ø³ÌµÄÖ¸Õë£¬ÒÔ±ãÔÚÃ¿¸öÊ±¼äÆ¬½áÊøºó½«µ±Ç°½ø³ÌÒÆ¶¯µ½¶ÓÁĞµÄÄ©Î²
+    PCB* processQueue[MAX];
+    int front = 0, rear = scheduler->processCount;
+    for (int i = 0; i < scheduler->processCount; i++) {
+        processQueue[i] = &scheduler->processes[i];
+    }
+
+    while (front != rear) {
+        PCB* process = processQueue[front];  // »ñÈ¡¶ÓÁĞÖĞµÄµÚÒ»¸ö½ø³Ì
+
+        if (strcmp(process->processState, "W") == 0 || strcmp(process->processState, "R") == 0) {
+            strcpy(process->processState, "R");  // ½«½ø³Ì×´Ì¬¸ÄÎªÔËĞĞ
+            process->startTime = time(NULL);  // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
+            if (process->requiredTime > scheduler->timeSlice) {
+                process->requiredTime -= scheduler->timeSlice;
+                usleep(scheduler->timeSlice*1000);
+                process->elapsedTime += scheduler->timeSlice;
+            } else {
+                process->elapsedTime += process->requiredTime;
+                process->requiredTime = scheduler->finishTime;
+                strcpy(process->processState, "F");  // ½«½ø³Ì×´Ì¬¸ÄÎªÍê³É
+            }
+            double schedulingTime = difftime(time(NULL), process->startTime);  // ¼ÆËãµ÷¶ÈÊ±¼ä
+            scheduler->totalSchedulingTime += schedulingTime;  // Ìí¼Óµ½×ÜµÄµ÷¶ÈÊ±¼ä
+            if (strcmp(process->processState, "F") != 0) {
+                processQueue[rear++] = process;  // Èç¹û½ø³Ì»¹Ã»ÓĞÍê³É£¬½«ËüÒÆ¶¯µ½¶ÓÁĞµÄÄ©Î²
+                if(rear > MAX) {
+                    rear%=MAX;
                 }
-                process.processState = "F";  // å°†è¿›ç¨‹çŠ¶æ€æ”¹ä¸ºå®Œæˆ
-                std::chrono::duration<double> schedulingTime = std::chrono::system_clock::now() - process.startTime;  // è®¡ç®—è°ƒåº¦æ—¶é—´
-                totalSchedulingTime += schedulingTime;  // æ·»åŠ åˆ°æ€»çš„è°ƒåº¦æ—¶é—´
-                process.elapsedTime += process.requiredTime;
-                process.requiredTime = finishTime;
             }
-            printProcesses();
         }
-        std::cout << "Average Scheduling Time: " << totalSchedulingTime.count() / processes.size() << std::endl;  // è®¡ç®—å¹¶æ‰“å°å¹³å‡è°ƒåº¦æ—¶é—´
+
+        front++;
+        if(front>MAX){
+            front%=MAX;
+        }// ÒÆ³ı¶ÓÁĞÖĞµÄµÚÒ»¸ö½ø³Ì
+        printProcesses(scheduler);
+    }
+    printf("Æ½¾ùµ÷¶ÈÊ±¼ä: %.2f\n", scheduler->totalSchedulingTime / scheduler->processCount);  // ¼ÆËã²¢´òÓ¡Æ½¾ùµ÷¶ÈÊ±¼ä
+}
+
+int comparePCBResponseRatio(const void* a, const void* b) {
+    PCB* pcbA = (PCB*)a;
+    PCB* pcbB = (PCB*)b;
+    if (pcbA->responseRatio < pcbB->responseRatio) {
+        return 1;
+    } else if (pcbA->responseRatio > pcbB->responseRatio) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+// ¸ßÏìÓ¦±ÈÓÅÏÈµ÷¶ÈËã·¨
+void schedule_highest_response_ratio_next(Scheduler* scheduler) {
+    for (int i = 0; i < scheduler->processCount; i++) {
+        PCB* process = &scheduler->processes[i];
+        // ¼ÆËãµÈ´ıÊ±¼ä
+        double waitingTime = process->waitingTime;
+
+        // ¼ÆËãÏìÓ¦±È
+        process->responseRatio = (waitingTime + process->requiredTime) / process->requiredTime;
     }
 
-// æ—¶é—´ç‰‡è½®è½¬è°ƒåº¦ç®—æ³•
-    void schedule_round_robin() {
-        // ä½¿ç”¨é˜Ÿåˆ—æ¥å­˜å‚¨è¿›ç¨‹çš„æŒ‡é’ˆï¼Œä»¥ä¾¿åœ¨æ¯ä¸ªæ—¶é—´ç‰‡ç»“æŸåå°†å½“å‰è¿›ç¨‹ç§»åŠ¨åˆ°é˜Ÿåˆ—çš„æœ«å°¾
-        std::deque<PCB*> processQueue;
-        for (PCB &process : processes) {
-            processQueue.push_back(&process);
+
+
+    // ±éÀúÅÅĞòºóµÄ½ø³ÌÁĞ±í£¬¶ÔÃ¿¸ö½ø³Ì½øĞĞµ÷¶È
+    for (int i = 0; i < scheduler->processCount; i) {
+        // ¶Ô½ø³ÌÁĞ±í°´ÕÕÏìÓ¦±È½øĞĞÅÅĞò
+        qsort(scheduler->processes, scheduler->processCount, sizeof(PCB), comparePCBResponseRatio);
+        PCB* process = &scheduler->processes[i];
+        if (strcmp(process->processState, "F") == 0){
+            break;
         }
-
-        while (!processQueue.empty()) {
-            PCB* process = processQueue.front();  // è·å–é˜Ÿåˆ—ä¸­çš„ç¬¬ä¸€ä¸ªè¿›ç¨‹
-
-            if (process->processState == "W" || process->processState == "R") {
-                process->processState = "R";  // å°†è¿›ç¨‹çŠ¶æ€æ”¹ä¸ºè¿è¡Œ
-                process->startTime = std::chrono::system_clock::now();  // è®°å½•å¼€å§‹æ—¶é—´
-                if (process->requiredTime > timeSlice) {
-                    process->requiredTime -= timeSlice;
-                    std::this_thread::sleep_for(timeSlice);
-                    process->elapsedTime += timeSlice;
+        process->startTime = time(NULL);  // ¼ÇÂ¼¿ªÊ¼Ê±¼ä
+        int requiredTime = process->requiredTime;
+        strcpy(process->processState, "R");  // ½«½ø³Ì×´Ì¬¸ÄÎªÔËĞĞ
+        process->elapsedTime += process->requiredTime;
+        process->requiredTime = scheduler->finishTime;
+        usleep(requiredTime * 1000);  // Ä£Äâ½ø³ÌÔËĞĞ
+        strcpy(process->processState, "F");  // ½«½ø³Ì×´Ì¬¸ÄÎªÍê³É
+        printProcesses(scheduler);
+        // ¸üĞÂÆäËûËùÓĞ½ø³ÌµÄµÈ´ıÊ±¼äºÍÏìÓ¦±È
+        for (int j = 0; j < scheduler->processCount; j++) {
+                PCB* otherProcess = &scheduler->processes[j];
+                if(i != j){
+                    otherProcess->waitingTime += requiredTime;
+                }
+                // ÖØĞÂ¼ÆËãÏìÓ¦±È
+                if (otherProcess->requiredTime != 0) {
+                    otherProcess->responseRatio = (otherProcess->waitingTime + otherProcess->requiredTime) / otherProcess->requiredTime;
                 } else {
-                    process->elapsedTime += process->requiredTime;
-                    process->requiredTime = finishTime;
-                    process->processState = "F";
-                    std::chrono::duration<double> schedulingTime = std::chrono::system_clock::now() - process->startTime;  // è®¡ç®—è°ƒåº¦æ—¶é—´
-                    totalSchedulingTime += schedulingTime;  // æ·»åŠ åˆ°æ€»çš„è°ƒåº¦æ—¶é—´// å°†è¿›ç¨‹çŠ¶æ€æ”¹ä¸ºå®Œæˆ
+                    // Èç¹ûËùĞèÊ±¼äÎª0£¬ÉèÖÃÏìÓ¦±ÈÎªÒ»¸öÌØ¶¨µÄÖµ£¬»òÕßÖ±½ÓÌø¹ıÕâ¸ö½ø³Ì
+                    otherProcess->responseRatio = -1;  // »òÕßÆäËûÄúÈÏÎªºÏÊÊµÄÖµ
                 }
 
-                if (process->processState != "F") {
-                    processQueue.push_back(process);  // å¦‚æœè¿›ç¨‹è¿˜æ²¡æœ‰å®Œæˆï¼Œå°†å®ƒç§»åŠ¨åˆ°é˜Ÿåˆ—çš„æœ«å°¾
-                }
-            }
 
-            processQueue.pop_front();  // ç§»é™¤é˜Ÿåˆ—ä¸­çš„ç¬¬ä¸€ä¸ªè¿›ç¨‹
-            printProcesses();
         }
-        std::cout << "Average Scheduling Time: " << totalSchedulingTime.count() / processes.size() << std::endl;  // è®¡ç®—å¹¶æ‰“å°å¹³å‡è°ƒåº¦æ—¶é—´
+        double schedulingTime = difftime(time(NULL), process->startTime);  // ¼ÆËãµ÷¶ÈÊ±¼ä
+        scheduler->totalSchedulingTime += schedulingTime;  // Ìí¼Óµ½×ÜµÄµ÷¶ÈÊ±¼ä
     }
+    // ´òÓ¡ËùÓĞ½ø³ÌµÄ×´Ì¬
+    printf("Æ½¾ùµ÷¶ÈÊ±¼ä: %.2f\n", scheduler->totalSchedulingTime / scheduler->processCount);  // ¼ÆËã²¢´òÓ¡Æ½¾ùµ÷¶ÈÊ±¼ä
+}
 
-// é«˜å“åº”æ¯”ä¼˜å…ˆè°ƒåº¦ç®—æ³•
-// é«˜å“åº”æ¯”ä¼˜å…ˆè°ƒåº¦ç®—æ³•
-    void schedule_highest_response_ratio_next() {
-        for (PCB &process: processes) {
-            // è®¡ç®—ç­‰å¾…æ—¶é—´
-            std::chrono::duration<double> waitingTime = process.elapsedTime;
-
-            // è®¡ç®—å“åº”æ¯”
-            process.responseRatio = (waitingTime + process.requiredTime) / process.requiredTime;
-        }
-
-        while (!processes.empty()) {
-            // å¯¹è¿›ç¨‹åˆ—è¡¨æŒ‰ç…§å“åº”æ¯”è¿›è¡Œæ’åº
-            std::sort(processes.begin(), processes.end(), [](const PCB &a, const PCB &b) {
-                return a.responseRatio > b.responseRatio;
-            });
-
-            // è°ƒåº¦å“åº”æ¯”æœ€é«˜çš„è¿›ç¨‹
-            PCB &process = processes.front();
-            process.processState = "R";  // å°†è¿›ç¨‹çŠ¶æ€æ”¹ä¸ºè¿è¡Œ
-            process.startTime = std::chrono::system_clock::now();  // è®°å½•å¼€å§‹æ—¶é—´
-            process.elapsedTime += process.requiredTime;
-            process.requiredTime = finishTime;
-            process.processState = "F";  // å°†è¿›ç¨‹çŠ¶æ€æ”¹ä¸ºå®Œæˆ
-            std::chrono::duration<double> schedulingTime = std::chrono::system_clock::now() - process.startTime;  // è®¡ç®—è°ƒåº¦æ—¶é—´
-            totalSchedulingTime += schedulingTime;  // æ·»åŠ åˆ°æ€»çš„è°ƒåº¦æ—¶é—´
-
-            // ä»è¿›ç¨‹åˆ—è¡¨ä¸­ç§»é™¤å·²å®Œæˆçš„è¿›ç¨‹
-            processes.erase(processes.begin());
-        }
-        // æ‰“å°æ‰€æœ‰è¿›ç¨‹çš„çŠ¶æ€
-        printProcesses();
-        std::cout << "Average Scheduling Time: " << totalSchedulingTime.count() / processes.size() << std::endl;  // è®¡ç®—å¹¶æ‰“å°å¹³å‡è°ƒåº¦æ—¶é—´
-    }
-};
 
 #endif //PROCESSSCHEDULING_SCHEDULER_H
